@@ -1,0 +1,42 @@
+stages:
+  - build
+  - test
+  - package
+  - deploy
+
+build job:
+  stage: build
+  script:
+    - "mvn compile"
+    - echo "sad day"
+test_job:
+  stage: test
+  script:
+    - "mvn clean test"
+package_job:
+  stage: package
+  script:
+    - "mvn clean package -DskipTests"
+  artifacts:
+    paths:
+      - target/NewDestiny-0.0.1-SNAPSHOT.jar
+
+deploy:
+  stage: deploy
+  image: alpine:3.11
+  when: manual
+  before_script:
+    - apk update && apk add openssh-client bash
+    - mkdir -p ~/.ssh
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add - > /dev/null
+    - touch ~/.ssh/config
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+    - ssh-keyscan -H $DEPLOY_SERVER_IP >> ~/.ssh/known_hosts
+  script:
+    - ssh ubuntu@$DEPLOY_SERVER_IP "sudo apt-get update"
+    - ssh ubuntu@$DEPLOY_SERVER_IP "sudo apt install openjdk-17-jdk -y"
+    - ssh ubuntu@$DEPLOY_SERVER_IP "sudo systemctl stop consoleapp.service"
+    - scp ./target/NewDestiny-0.0.1-SNAPSHOT.jar ubuntu@$DEPLOY_SERVER_IP:~/console-app/
+    - ssh ubuntu@$DEPLOY_SERVER_IP "sudo systemctl start consoleapp.service"
+##
